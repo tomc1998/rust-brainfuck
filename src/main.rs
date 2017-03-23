@@ -33,7 +33,11 @@ fn interpret(src: &str) -> Result<(), String> {
   let mut ptr: usize = 0; // Memory pointer
   let mut iptr: usize = 0; // Instruction pointer
   let mut goto_map = HashMap::new();
-  
+
+  // Get input buffer
+  use std::io;
+  let mut in_buf = String::new();
+
   // Calculate gotos and store in the goto_map
   let mut pos_stack : Vec<usize> = Vec::new();
   let mut ii : usize = 0;
@@ -65,7 +69,15 @@ fn interpret(src: &str) -> Result<(), String> {
       '-' => memory[ptr] -= 1,
       '.' => print!("{}", try!(char::from_u32(memory[ptr])
                                .ok_or(format!("Invalid UTF-8 char: {}", memory[ptr])))),
-      ',' => (),
+      ',' => {
+        if in_buf.len() == 0 { 
+          try!(io::stdin().read_line(&mut in_buf).map_err(|e|format!("{}", e))) ;
+        }
+        memory[ptr] = in_buf[0..1].chars().next().unwrap() as u32;
+        in_buf = in_buf[1..].to_string();
+      }
+
+
       '[' if memory[ptr] == 0 => iptr = *goto_map.get(&iptr).unwrap(),
       ']' if memory[ptr] != 0 => iptr = *goto_map.get(&iptr).unwrap(),
       _ => (),
