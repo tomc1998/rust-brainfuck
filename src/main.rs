@@ -11,6 +11,7 @@ fn load_file(path: &str) -> Result<String, std::io::Error> {
 }
 
 fn main() {
+  // Parse arguments and load file.
   let f = &String::from(env::args().skip(1).take(1).next().unwrap_or(String::from("")).trim());
   if f.is_empty() { println!("Please provide a valid filename."); return; }
   let src = load_file(f).map_err(|e| match e.kind() {
@@ -18,6 +19,8 @@ fn main() {
     _ => format!("Unknown error loading the file: {}", e),
   });
   if src.is_err() { println!("{}", src.unwrap_err()); return; }
+
+  // Interpret source.
   let res = interpret(&src.unwrap());
   if res.is_err() { println!("ERROR: {}", res.unwrap_err()); }
 }

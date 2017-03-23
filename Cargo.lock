@@ -1,4 +1,4 @@
 [root]
-name = "bf-interpreter"
+name = "rs_bf"
 version = "0.1.0"
 
