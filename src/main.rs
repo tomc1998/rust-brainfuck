@@ -1,6 +1,7 @@
 use std::env;
 use std::io::ErrorKind;
 use std::char;
+use std::collections::HashMap;
 
 /// Load a file at the given path into a `String`
 fn load_file(path: &str) -> Result<String, std::io::Error> {
@@ -31,42 +32,27 @@ fn interpret(src: &str) -> Result<(), String> {
   let mut memory : [u32; 30000] = [0; 30000];
   let mut ptr: usize = 0; // Memory pointer
   let mut iptr: usize = 0; // Instruction pointer
-
-  /// Function to set the iptr to the matching '[' or ']' character
-  #[inline(always)]
-  fn goto_matching_close_bracket(iptr: &mut usize, 
-                                 ptr: usize, 
-                                 src: &str,
-                                 memory: [u32; 30000]) -> Result<(), String> {
-    if memory[ptr] != 0 { return Ok(()); }
-    let mut ii : i32 = 0;
-    loop {
-      *iptr += 1;
-      while !src.is_char_boundary(*iptr) { *iptr += 1; } // Dealing with utf 8
-      if *iptr > src.len() { return Err(String::from("Bracket not closed.")); }
-      if src[*iptr..].chars().next().unwrap() == '[' { ii += 1; }
-      if src[*iptr..].chars().next().unwrap() == ']' { ii -= 1; }
-      if ii < 0 { return Ok(()); }
+  let mut goto_map = HashMap::new();
+  
+  // Calculate gotos and store in the goto_map
+  let mut pos_stack : Vec<usize> = Vec::new();
+  let mut ii : usize = 0;
+  loop {
+    while !src.is_char_boundary(ii) { ii += 1; }
+    if ii >= src.len() { break; }
+    let c = src[ii..].chars().next().unwrap();
+    match c {
+      '[' => pos_stack.push(ii),
+      ']' => {
+        let p = try!(pos_stack.pop().ok_or(String::from("Too many closing brackets.")));
+        goto_map.insert(p, ii);
+        goto_map.insert(ii, p);
+      },
+      _ => (),
     }
+    ii += 1;
   }
-
-  /// Function to set the *iptr to the matching '[' or ']' character
-  #[inline(always)]
-  fn goto_matching_open_bracket(iptr: &mut usize, 
-                                 ptr: usize, 
-                                 src: &str,
-                                 memory: [u32; 30000]) -> Result<(), String> {
-    if memory[ptr] == 0 { return Ok(()); }
-    let mut ii : i32 = 0;
-    loop {
-      *iptr -= 1;
-      while !src.is_char_boundary(*iptr) { *iptr -= 1; } // Dealing with utf 8
-      if *iptr > src.len() { return Err(String::from("Too many closing brackets.")); }
-      if src[*iptr..].chars().next().unwrap() == ']' { ii += 1; }
-      if src[*iptr..].chars().next().unwrap() == '[' { ii -= 1; }
-      if ii < 0 { return Ok(()); }
-    }
-  }
+  if pos_stack.len() > 0 { return Err(String::from("Unmatched bracket")); }
 
   loop {
     if iptr >= src.len() { return Ok(()); }
@@ -80,8 +66,8 @@ fn interpret(src: &str) -> Result<(), String> {
       '.' => print!("{}", try!(char::from_u32(memory[ptr])
                                .ok_or(format!("Invalid UTF-8 char: {}", memory[ptr])))),
       ',' => (),
-      '[' => try!(goto_matching_close_bracket(&mut iptr, ptr, src, memory)),
-      ']' => try!(goto_matching_open_bracket(&mut iptr, ptr, src, memory)),
+      '[' if memory[ptr] == 0 => iptr = *goto_map.get(&iptr).unwrap(),
+      ']' if memory[ptr] != 0 => iptr = *goto_map.get(&iptr).unwrap(),
       _ => (),
     };
     iptr += 1;
